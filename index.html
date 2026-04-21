@@ -1161,13 +1161,30 @@ function closePreview() {
 
 async function downloadPDF() {
   const el = document.getElementById('bulletin-content');
-  const canvas = await html2canvas(el, { scale: 2 });
+  const canvas = await html2canvas(el, { scale: 2, useCORS: true });
   const imgData = canvas.toDataURL('image/png');
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF('p', 'mm', 'a4');
-  const pdfWidth = pdf.internal.pageSize.getWidth();
-  const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-  pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+  
+  const pdfWidth = pdf.internal.pageSize.getWidth();   // 210 mm
+  const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
+  const imgWidth = pdfWidth;
+  const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+  
+  let heightLeft = imgHeight;
+  let position = 0;
+  
+  // Première page
+  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+  heightLeft -= pdfHeight;
+  
+  // Pages suivantes si nécessaire
+  while (heightLeft > 0) {
+    position = heightLeft - imgHeight; // position négative pour décaler l'image vers le haut
+    pdf.addPage();
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+  }
   
   const data = getFormData();
   const s = data.salarie;
@@ -1256,13 +1273,29 @@ async function exportAllBulletins() {
     document.body.appendChild(div);
     
     const el = div.querySelector('.bulletin');
-    const canvas = await html2canvas(el, { scale: 2 });
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true });
     const imgData = canvas.toDataURL('image/png');
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
+    
     const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth;
+    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+    
+    let heightLeft = imgHeight;
+    let position = 0;
+    
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+    
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+    }
+    
     pdf.save(`Bulletin_${b.salarieNom.replace(' ', '_')}_${b.mois}_${b.annee}.pdf`);
     
     document.body.removeChild(div);
