@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PayApp - SaaS de Gestion de Paie</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; color: #1a1a2e; }
+
+/* Layout */
+.app { display: flex; min-height: 100vh; }
+.sidebar { width: 240px; background: #1a1a4d; color: white; padding: 20px 0; position: fixed; height: 100vh; overflow-y: auto; }
+.sidebar h1 { font-size: 18px; padding: 0 20px 20px; border-bottom: 1px solid #2d2d6b; }
+.sidebar nav { padding-top: 10px; }
+.sidebar a { display: block; padding: 12px 20px; color: #b8b8d9; text-decoration: none; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+.sidebar a:hover, .sidebar a.active { background: #2d2d6b; color: white; border-left: 3px solid #6c63ff; }
+.main { flex: 1; margin-left: 240px; padding: 30px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* Components */
+.card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+.card h2 { font-size: 20px; margin-bottom: 20px; color: #1a1a4d; }
+.card h3 { font-size: 15px; margin-bottom: 12px; color: #1a1a4d; padding-bottom: 8px; border-bottom: 2px solid #e0e0f0; }
+
+.btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+.btn-primary { background: #1a1a4d; color: white; }
+.btn-primary:hover { background: #2d2d6b; }
+.btn-success { background: #10b981; color: white; }
+.btn-success:hover { background: #059669; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-secondary { background: #e5e7eb; color: #374151; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+
+.form-grid { display: grid; gap: 15px; }
+.form-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.field label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 5px; font-weight: 500; }
+.field input, .field select, .field textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 14px; }
+.field input:focus, .field select:focus { outline: none; border-color: #6c63ff; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+table th { background: #1a1a4d; color: white; padding: 10px; text-align: left; font-size: 12px; }
+table td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+table tr:hover { background: #f9fafb; }
+
+.badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.badge-success { background: #d1fae5; color: #065f46; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-info { background: #dbeafe; color: #1e40af; }
+
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+.modal.active { display: flex; }
+.modal-content { background: white; border-radius: 10px; padding: 30px; max-width: 90%; max-height: 90vh; overflow-y: auto; width: 800px; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 25px; }
+.stat-card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.stat-card .label { font-size: 12px; color: #6b7280; text-transform: uppercase; }
+.stat-card .value { font-size: 24px; font-weight: 700; color: #1a1a4d; margin-top: 5px; }
+.stat-card .change { font-size: 12px; margin-top: 5px; }
+.change.up { color: #10b981; }
+.change.down { color: #ef4444; }
+
+.tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
+.tab { padding: 10px 20px; cursor: pointer; font-size: 14px; color: #6b7280; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.tab.active { color: #1a1a4d; border-bottom-color: #6c63ff; font-weight: 600; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.section-title { font-weight: 600; color: #1a1a4d; font-size: 14px; margin: 15px 0 10px; padding: 8px; background: #f0f0fa; border-radius: 5px; }
+
+/* Bulletin PDF */
+.bulletin { background: white; padding: 30px 40px; font-size: 10px; line-height: 1.4; font-family: Arial, sans-serif; color: #1a1a2e; }
+.bulletin table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+.bulletin table th { background: #1a1a4d; color: white; padding: 6px; font-weight: 600; }
+.bulletin table td { padding: 4px 6px; border: 1px solid #ddd; }
+.bulletin .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 20px; }
+.bulletin .salarie-info { background: #c5c5f0; padding: 12px 16px; border-radius: 6px; font-size: 10px; line-height: 1.7; }
+.bulletin .net-box { background: #f8f8f8; padding: 12px 15px; margin: 15px 0; border: 2px solid #1a1a4d; }
+.bulletin .net-final { font-size: 16px; font-weight: bold; text-align: center; padding: 14px; background: #f0f0fa; border: 3px solid #1a1a4d; margin-top: 15px; }
+
+.alert { padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
+.alert-warning { background: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b; }
+.alert-info { background: #dbeafe; color: #1e40af; border-left: 4px solid #3b82f6; }
+
+@media print {
+  .sidebar, .no-print, button { display: none !important; }
+  .main { margin-left: 0; padding: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar no-print">
+    <h1>💼 PayApp</h1>
+    <nav>
+      <a onclick="showPage('dashboard')" class="active" data-page="dashboard">📊 Tableau de bord</a>
+      <a onclick="showPage('entreprise')" data-page="entreprise">🏢 Entreprise</a>
+      <a onclick="showPage('salaries')" data-page="salaries">👥 Salariés</a>
+      <a onclick="showPage('bulletins')" data-page="bulletins">📄 Bulletins</a>
+      <a onclick="showPage('generer')" data-page="generer">➕ Nouveau bulletin</a>
+      <a onclick="showPage('parametres')" data-page="parametres">⚙️ Paramètres</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="page active">
+      <h1 style="font-size: 28px; margin-bottom: 25px;">Tableau de bord</h1>
+      
+      <div class="alert alert-warning">
+        ⚠️ <strong>Avertissement:</strong> Les calculs de paie sont basés sur les formules URSSAF publiques mais doivent être validés par un expert-comptable avant mise en production. Cet outil est fourni en l'état pour un usage MVP/démo.
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="label">Salariés actifs</div>
+          <div class="value" id="stat-salaries">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Bulletins ce mois</div>
+          <div class="value" id="stat-bulletins">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Masse salariale brute</div>
+          <div class="value" id="stat-masse">0 €</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Coût total employeur</div>
+          <div class="value" id="stat-cout">0 €</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Derniers bulletins générés</h2>
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Salarié</th><th>Période</th><th>Brut</th><th>Net</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="derniers-bulletins"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ENTREPRISE -->
+    <div id="entreprise" class="page">
+      <h1 style="font-size: 28px; margin-bottom: 25px;">Informations Entreprise</h1>
+      <div class="card">
+        <h2>Identité</h2>
+        <div class="form-grid cols-2">
+          <div class="field"><label>Raison sociale</label><input id="ent-nom" type="text"></div>
+          <div class="field"><label>Forme juridique</label>
+            <select id="ent-forme">
+              <option>SARL</option><option>SAS</option><option>SASU</option><option>EURL</option>
+              <option>SA</option><option>SNC</option><option>EI</option><option>Micro-entreprise</option>
+            </select>
+          </div>
+          <div class="field"><label>SIRET</label><input id="ent-siret" type="text"></div>
+          <div class="field"><label>Code NAF/APE</label><input id="ent-naf" type="text"></div>
+          <div class="field"><label>N° URSSAF</label><input id="ent-urssaf" type="text"></div>
+          <div class="field"><label>Convention collective</label><input id="ent-convention" type="text"></div>
+        </div>
+        <h3 style="margin-top: 25px;">Adresse</h3>
+        <div class="form-grid cols-2">
+          <div class="field"><label>Adresse</label><input id="ent-adresse" type="text"></div>
+          <div class="field"><label>Complément</label><input id="ent-adresse2" type="text"></div>
+          <div class="field"><label>Code postal</label><input id="ent-cp" type="text"></div>
+          <div class="field"><label>Ville</label><input id="ent-ville" type="text"></div>
+        </div>
+        <h3 style="margin-top: 25px;">Paramètres paie</h3>
+        <div class="form-grid cols-3">
+          <div class="field"><label>Effectif</label>
+            <select id="ent-effectif"><option value="moins50">Moins de 50</option><option value="plus50">50 et plus</option></select>
+          </div>
+          <div class="field"><label>Taux AT (%)</label><input id="ent-taux-at" type="number" step="0.01" value="0.80"></div>
+          <div class="field"><label>Taux FNAL (%)</label><input id="ent-taux-fnal" type="number" step="0.01" value="0.10"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveEntreprise()" style="margin-top: 20px;">💾 Enregistrer</button>
+      </div>
+    </div>
+
+    <!-- SALARIES -->
+    <div id="salaries" class="page">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+        <h1 style="font-size: 28px;">Salariés</h1>
+        <button class="btn btn-primary" onclick="openSalarieModal()">+ Ajouter un salarié</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Matricule</th><th>Nom</th><th>Emploi</th><th>Statut</th><th>Entrée</th><th>Salaire brut</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="salaries-list"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- BULLETINS -->
+    <div id="bulletins" class="page">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+        <h1 style="font-size: 28px;">Historique des bulletins</h1>
+        <div>
+          <button class="btn btn-secondary" onclick="exportAllBulletins()">📦 Export groupé</button>
+          <button class="btn btn-primary" onclick="showPage('generer')">+ Nouveau bulletin</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="form-grid cols-3" style="margin-bottom: 20px;">
+          <div class="field"><label>Filtrer par salarié</label>
+            <select id="filter-salarie" onchange="renderBulletins()"><option value="">Tous</option></select>
+          </div>
+          <div class="field"><label>Mois</label>
+            <select id="filter-mois" onchange="renderBulletins()">
+              <option value="">Tous</option>
+              <option>Janvier</option><option>Février</option><option>Mars</option><option>Avril</option>
+              <option>Mai</option><option>Juin</option><option>Juillet</option><option>Août</option>
+              <option>Septembre</option><option>Octobre</option><option>Novembre</option><option>Décembre</option>
+            </select>
+          </div>
+          <div class="field"><label>Année</label><input id="filter-annee" type="number" onchange="renderBulletins()"></div>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Période</th><th>Salarié</th><th>Brut</th><th>Cotisations</th><th>Net avant impôt</th><th>PAS</th><th>Net payé</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="bulletins-list"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- GENERER BULLETIN -->
+    <div id="generer" class="page">
+      <h1 style="font-size: 28px; margin-bottom: 25px;">Nouveau bulletin de paie</h1>
+      
+      <div class="card">
+        <div class="form-grid cols-3">
+          <div class="field"><label>Salarié</label>
+            <select id="gen-salarie" onchange="loadSalarieData()">
+              <option value="">-- Sélectionner --</option>
+            </select>
+          </div>
+          <div class="field"><label>Mois</label>
+            <select id="gen-mois">
+              <option>Janvier</option><option>Février</option><option>Mars</option><option>Avril</option>
+              <option>Mai</option><option>Juin</option><option>Juillet</option><option>Août</option>
+              <option>Septembre</option><option>Octobre</option><option>Novembre</option><option>Décembre</option>
+            </select>
+          </div>
+          <div class="field"><label>Année</label><input id="gen-annee" type="number" value="2026"></div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('tab-remuneration')">💰 Rémunération</div>
+        <div class="tab" onclick="showTab('tab-absences')">📅 Absences & Congés</div>
+        <div class="tab" onclick="showTab('tab-avantages')">🎁 Avantages & Frais</div>
+        <div class="tab" onclick="showTab('tab-retenues')">📉 Retenues</div>
+      </div>
+
+      <div id="tab-remuneration" class="tab-content active">
+        <div class="card">
+          <h3>Salaire de base</h3>
+          <div class="form-grid cols-3">
+            <div class="field"><label>Heures mensuelles</label><input id="gen-heures" type="number" step="0.01" value="151.67" onchange="recalc()"></div>
+            <div class="field"><label>Taux horaire (€)</label><input id="gen-taux" type="number" step="0.0001" value="20.5714" onchange="recalc()"></div>
+            <div class="field"><label>Salaire de base (€)</label><input id="gen-base" type="number" step="0.01" readonly style="background:#f9fafb;"></div>
+          </div>
+          
+          <h3 style="margin-top: 20px;">Heures supplémentaires</h3>
+          <div class="form-grid cols-4">
+            <div class="field"><label>HS 25% (nombre)</label><input id="gen-hs25" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>HS 50% (nombre)</label><input id="gen-hs50" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Heures complémentaires</label><input id="gen-hc" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Heures de nuit</label><input id="gen-hn" type="number" step="0.01" value="0" onchange="recalc()"></div>
+          </div>
+          
+          <h3 style="margin-top: 20px;">Primes et indemnités</h3>
+          <div class="form-grid cols-4">
+            <div class="field"><label>Prime ancienneté (€)</label><input id="gen-prime-anc" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Prime exceptionnelle (€)</label><input id="gen-prime-exc" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Prime performance (€)</label><input id="gen-prime-perf" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>13ème mois (€)</label><input id="gen-prime-13" type="number" step="0.01" value="0" onchange="recalc()"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-absences" class="tab-content">
+        <div class="card">
+          <h3>Congés payés</h3>
+          <div class="form-grid cols-4">
+            <div class="field"><label>CP acquis N-1</label><input id="gen-cp-acquis-n1" type="number" step="0.01" value="30" onchange="recalc()"></div>
+            <div class="field"><label>CP pris N-1 cumulés</label><input id="gen-cp-pris-n1" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>CP acquis période N</label><input id="gen-cp-acquis-n" type="number" step="0.01" value="2.5" onchange="recalc()"></div>
+            <div class="field"><label>CP pris ce mois</label><input id="gen-cp-pris-mois" type="number" step="0.01" value="0" onchange="recalc()"></div>
+          </div>
+          
+          <h3 style="margin-top: 20px;">RTT</h3>
+          <div class="form-grid cols-4">
+            <div class="field"><label>RTT acquis</label><input id="gen-rtt-acquis" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>RTT pris cumulés</label><input id="gen-rtt-pris" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>RTT pris ce mois</label><input id="gen-rtt-mois" type="number" step="0.01" value="0" onchange="recalc()"></div>
+          </div>
+          
+          <h3 style="margin-top: 20px;">Absences</h3>
+          <div class="form-grid cols-4">
+            <div class="field"><label>Jours arrêt maladie</label><input id="gen-maladie-jours" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>IJSS perçues (€)</label><input id="gen-ijss" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Subrogation ?</label>
+              <select id="gen-subrogation" onchange="recalc()"><option value="non">Non</option><option value="oui">Oui</option></select>
+            </div>
+            <div class="field"><label>Absences non rémunérées (heures)</label><input id="gen-abs-nr" type="number" step="0.01" value="0" onchange="recalc()"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-avantages" class="tab-content">
+        <div class="card">
+          <h3>Avantages en nature</h3>
+          <div class="form-grid cols-4">
+            <div class="field"><label>Véhicule (€)</label><input id="gen-avn-vehicule" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Logement (€)</label><input id="gen-avn-logement" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Nourriture (€)</label><input id="gen-avn-nourriture" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Autres (€)</label><input id="gen-avn-autres" type="number" step="0.01" value="0" onchange="recalc()"></div>
+          </div>
+          
+          <h3 style="margin-top: 20px;">Frais professionnels (remboursements)</h3>
+          <div class="form-grid cols-3">
+            <div class="field"><label>Indemnité transport (€)</label><input id="gen-ind-transport" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Remboursement frais (€)</label><input id="gen-frais-pro" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Forfait télétravail (€)</label><input id="gen-teletravail" type="number" step="0.01" value="0" onchange="recalc()"></div>
+          </div>
+          
+          <h3 style="margin-top: 20px;">Titres-restaurant</h3>
+          <div class="form-grid cols-3">
+            <div class="field"><label>Nombre de titres</label><input id="gen-tr-nb" type="number" value="20" onchange="recalc()"></div>
+            <div class="field"><label>Valeur faciale (€)</label><input id="gen-tr-valeur" type="number" step="0.01" value="11" onchange="recalc()"></div>
+            <div class="field"><label>Part employeur (%)</label><input id="gen-tr-part" type="number" step="1" value="50" onchange="recalc()"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-retenues" class="tab-content">
+        <div class="card">
+          <h3>Acomptes et saisies</h3>
+          <div class="form-grid cols-3">
+            <div class="field"><label>Acompte versé (€)</label><input id="gen-acompte" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Saisie sur salaire (€)</label><input id="gen-saisie" type="number" step="0.01" value="0" onchange="recalc()"></div>
+            <div class="field"><label>Pension alimentaire (€)</label><input id="gen-pension" type="number" step="0.01" value="0" onchange="recalc()"></div>
+          </div>
+          
+          <h3 style="margin-top: 20px;">Prélèvement à la source</h3>
+          <div class="form-grid cols-2">
+            <div class="field"><label>Type de taux</label>
+              <select id="gen-pas-type" onchange="recalc()">
+                <option value="perso">Taux personnalisé</option>
+                <option value="non-perso">Taux non personnalisé</option>
+                <option value="neutre">Taux neutre</option>
+              </select>
+            </div>
+            <div class="field"><label>Taux PAS (%)</label><input id="gen-pas-taux" type="number" step="0.01" value="5.30" onchange="recalc()"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Récapitulatif calculé</h3>
+        <div id="recap-live"></div>
+        <div style="margin-top: 20px;">
+          <button class="btn btn-success" onclick="saveBulletin()">💾 Enregistrer le bulletin</button>
+          <button class="btn btn-primary" onclick="previewBulletin()">👁️ Aperçu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PARAMETRES -->
+    <div id="parametres" class="page">
+      <h1 style="font-size: 28px; margin-bottom: 25px;">Paramètres de cotisations</h1>
+      <div class="alert alert-info">
+        ℹ️ Ces taux sont les valeurs URSSAF 2026. Modifiez-les selon votre convention collective et les évolutions réglementaires.
+      </div>
+      
+      <div class="card">
+        <h2>Plafonds</h2>
+        <div class="form-grid cols-3">
+          <div class="field"><label>PMSS (€)</label><input id="par-pmss" type="number" step="0.01" value="3925"></div>
+          <div class="field"><label>SMIC horaire (€)</label><input id="par-smic" type="number" step="0.01" value="12.13"></div>
+          <div class="field"><label>SMIC mensuel 35h (€)</label><input id="par-smic-m" type="number" step="0.01" value="1839.30"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Taux de cotisations salariales (%)</h2>
+        <div class="form-grid cols-4">
+          <div class="field"><label>Maladie (tarif Alsace-Moselle)</label><input id="par-sal-maladie" type="number" step="0.01" value="0"></div>
+          <div class="field"><label>Vieillesse plafonnée</label><input id="par-sal-vieil-p" type="number" step="0.01" value="6.90"></div>
+          <div class="field"><label>Vieillesse déplafonnée</label><input id="par-sal-vieil-d" type="number" step="0.01" value="0.40"></div>
+          <div class="field"><label>Retraite compl. T1</label><input id="par-sal-agirc-t1" type="number" step="0.01" value="4.01"></div>
+          <div class="field"><label>Retraite compl. T2</label><input id="par-sal-agirc-t2" type="number" step="0.01" value="9.72"></div>
+          <div class="field"><label>CEG T1</label><input id="par-sal-ceg-t1" type="number" step="0.01" value="0.86"></div>
+          <div class="field"><label>CEG T2</label><input id="par-sal-ceg-t2" type="number" step="0.01" value="1.08"></div>
+          <div class="field"><label>APEC (cadres)</label><input id="par-sal-apec" type="number" step="0.0001" value="0.024"></div>
+          <div class="field"><label>CSG déductible</label><input id="par-sal-csg-d" type="number" step="0.01" value="6.80"></div>
+          <div class="field"><label>CSG/CRDS non déductible</label><input id="par-sal-csg-nd" type="number" step="0.01" value="2.90"></div>
+          <div class="field"><label>Complémentaire santé</label><input id="par-sal-sante" type="number" step="0.01" value="0.81"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Taux de cotisations patronales (%)</h2>
+        <div class="form-grid cols-4">
+          <div class="field"><label>Maladie</label><input id="par-pat-maladie" type="number" step="0.01" value="7.00"></div>
+          <div class="field"><label>Vieillesse plafonnée</label><input id="par-pat-vieil-p" type="number" step="0.01" value="8.55"></div>
+          <div class="field"><label>Vieillesse déplafonnée</label><input id="par-pat-vieil-d" type="number" step="0.01" value="1.90"></div>
+          <div class="field"><label>Allocations familiales</label><input id="par-pat-famille" type="number" step="0.01" value="3.45"></div>
+          <div class="field"><label>Assurance chômage</label><input id="par-pat-chomage" type="number" step="0.01" value="4.05"></div>
+          <div class="field"><label>AGS</label><input id="par-pat-ags" type="number" step="0.01" value="0.25"></div>
+          <div class="field"><label>Retraite compl. T1</label><input id="par-pat-agirc-t1" type="number" step="0.01" value="6.01"></div>
+          <div class="field"><label>Retraite compl. T2</label><input id="par-pat-agirc-t2" type="number" step="0.01" value="12.95"></div>
+          <div class="field"><label>CEG T1</label><input id="par-pat-ceg-t1" type="number" step="0.01" value="1.29"></div>
+          <div class="field"><label>CEG T2</label><input id="par-pat-ceg-t2" type="number" step="0.01" value="1.62"></div>
+          <div class="field"><label>APEC (cadres)</label><input id="par-pat-apec" type="number" step="0.0001" value="0.036"></div>
+          <div class="field"><label>Contribution dialogue social</label><input id="par-pat-cds" type="number" step="0.01" value="0.016"></div>
+          <div class="field"><label>Complémentaire santé</label><input id="par-pat-sante" type="number" step="0.01" value="0.81"></div>
+          <div class="field"><label>Formation professionnelle</label><input id="par-pat-formation" type="number" step="0.01" value="1.00"></div>
+          <div class="field"><label>Taxe apprentissage</label><input id="par-pat-appr" type="number" step="0.01" value="0.68"></div>
+          <div class="field"><label>Versement transport</label><input id="par-pat-vt" type="number" step="0.01" value="0"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveParametres()" style="margin-top: 20px;">💾 Enregistrer les paramètres</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL SALARIÉ -->
+<div id="modal-salarie" class="modal">
+  <div class="modal-content">
+    <h2 id="modal-title">Nouveau salarié</h2>
+    <input type="hidden" id="sal-id">
+    <h3 style="margin-top: 20px;">Identité</h3>
+    <div class="form-grid cols-2">
+      <div class="field"><label>Matricule</label><input id="sal-matricule" type="text"></div>
+      <div class="field"><label>N° Sécurité sociale</label><input id="sal-numss" type="text"></div>
+      <div class="field"><label>Civilité</label>
+        <select id="sal-civilite"><option>Monsieur</option><option>Madame</option></select>
+      </div>
+      <div class="field"><label>Date de naissance</label><input id="sal-naissance" type="date"></div>
+      <div class="field"><label>Prénom</label><input id="sal-prenom" type="text"></div>
+      <div class="field"><label>Nom</label><input id="sal-nom" type="text"></div>
+      <div class="field"><label>Adresse</label><input id="sal-adresse" type="text"></div>
+      <div class="field"><label>Code postal</label><input id="sal-cp" type="text"></div>
+      <div class="field"><label>Ville</label><input id="sal-ville" type="text"></div>
+      <div class="field"><label>Email</label><input id="sal-email" type="email"></div>
+    </div>
+    
+    <h3 style="margin-top: 20px;">Contrat</h3>
+    <div class="form-grid cols-2">
+      <div class="field"><label>Type de contrat</label>
+        <select id="sal-contrat"><option>CDI</option><option>CDD</option><option>Intérim</option><option>Apprentissage</option><option>Stage</option></select>
+      </div>
+      <div class="field"><label>Date d'entrée</label><input id="sal-entree" type="date"></div>
+      <div class="field"><label>Emploi</label><input id="sal-emploi" type="text"></div>
+      <div class="field"><label>Statut</label>
+        <select id="sal-statut"><option>Cadre</option><option>Non cadre</option><option>ETAM</option><option>Ouvrier</option></select>
+      </div>
+      <div class="field"><label>Position</label><input id="sal-position" type="text"></div>
+      <div class="field"><label>Coefficient</label><input id="sal-coeff" type="text"></div>
+    </div>
+    
+    <h3 style="margin-top: 20px;">Rémunération</h3>
+    <div class="form-grid cols-3">
+      <div class="field"><label>Salaire brut mensuel (€)</label><input id="sal-salaire" type="number" step="0.01" value="0"></div>
+      <div class="field"><label>Taux horaire (€)</label><input id="sal-taux-h" type="number" step="0.0001" value="0"></div>
+      <div class="field"><label>Heures mensuelles</label><input id="sal-heures" type="number" step="0.01" value="151.67"></div>
+    </div>
+    
+    <h3 style="margin-top: 20px;">Bancaire</h3>
+    <div class="form-grid cols-2">
+      <div class="field"><label>IBAN</label><input id="sal-iban" type="text"></div>
+      <div class="field"><label>BIC</label><input id="sal-bic" type="text"></div>
+    </div>
+    
+    <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn btn-secondary" onclick="closeSalarieModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveSalarie()">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL APERÇU -->
+<div id="modal-preview" class="modal">
+  <div class="modal-content" style="width: 900px;">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+      <h2>Aperçu du bulletin</h2>
+      <div>
+        <button class="btn btn-success" onclick="downloadPDF()">📥 Télécharger PDF</button>
+        <button class="btn btn-secondary" onclick="closePreview()">Fermer</button>
+      </div>
+    </div>
+    <div id="bulletin-preview"></div>
+  </div>
+</div>
+
+<script>
+// =========================================
+// STORAGE & STATE
+// =========================================
+const STORAGE = {
+  entreprise: 'payapp_entreprise',
+  salaries: 'payapp_salaries',
+  bulletins: 'payapp_bulletins',
+  parametres: 'payapp_parametres'
+};
+
+let entreprise = JSON.parse(localStorage.getItem(STORAGE.entreprise)) || {};
+let salaries = JSON.parse(localStorage.getItem(STORAGE.salaries)) || [];
+let bulletins = JSON.parse(localStorage.getItem(STORAGE.bulletins)) || [];
+let parametres = JSON.parse(localStorage.getItem(STORAGE.parametres)) || getDefaultParams();
+
+function getDefaultParams() {
+  return {
+    pmss: 3925, smic: 12.13, smicM: 1839.30,
+    sal: { maladie: 0, vieilP: 6.90, vieilD: 0.40, agircT1: 4.01, agircT2: 9.72, cegT1: 0.86, cegT2: 1.08, apec: 0.024, csgD: 6.80, csgND: 2.90, sante: 0.81 },
+    pat: { maladie: 7.00, vieilP: 8.55, vieilD: 1.90, famille: 3.45, chomage: 4.05, ags: 0.25, agircT1: 6.01, agircT2: 12.95, cegT1: 1.29, cegT2: 1.62, apec: 0.036, cds: 0.016, sante: 0.81, formation: 1.00, appr: 0.68, vt: 0, at: 0.80, fnal: 0.10 }
+  };
+}
+
+// =========================================
+// NAVIGATION
+// =========================================
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+  document.getElementById(page).classList.add('active');
+  document.querySelector(`.sidebar a[data-page="${page}"]`).classList.add('active');
+  
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'salaries') renderSalaries();
+  if (page === 'bulletins') { renderBulletinsFilters(); renderBulletins(); }
+  if (page === 'generer') { loadSalariesDropdown(); recalc(); }
+  if (page === 'entreprise') loadEntreprise();
+  if (page === 'parametres') loadParametres();
+}
+
+function showTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// =========================================
+// ENTREPRISE
+// =========================================
+function loadEntreprise() {
+  Object.keys(entreprise).forEach(k => {
+    const el = document.getElementById('ent-' + k);
+    if (el) el.value = entreprise[k];
+  });
+}
+
+function saveEntreprise() {
+  const fields = ['nom','forme','siret','naf','urssaf','convention','adresse','adresse2','cp','ville','effectif','taux-at','taux-fnal'];
+  fields.forEach(f => {
+    const el = document.getElementById('ent-' + f);
+    if (el) entreprise[f] = el.value;
+  });
+  localStorage.setItem(STORAGE.entreprise, JSON.stringify(entreprise));
+  alert('✅ Entreprise enregistrée');
+}
+
+// =========================================
+// SALARIES
+// =========================================
+function renderSalaries() {
+  const tbody = document.getElementById('salaries-list');
+  tbody.innerHTML = salaries.map(s => `
+    <tr>
+      <td>${s.matricule}</td>
+      <td>${s.civilite} ${s.prenom} ${s.nom}</td>
+      <td>${s.emploi}</td>
+      <td><span class="badge badge-info">${s.statut}</span></td>
+      <td>${s.entree}</td>
+      <td>${parseFloat(s.salaire).toFixed(2)} €</td>
+      <td>
+        <button class="btn btn-sm btn-secondary" onclick="editSalarie('${s.id}')">✏️</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteSalarie('${s.id}')">🗑️</button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" style="text-align:center;color:#9ca3af;">Aucun salarié</td></tr>';
+}
+
+function openSalarieModal() {
+  document.getElementById('modal-title').textContent = 'Nouveau salarié';
+  document.getElementById('sal-id').value = '';
+  ['matricule','numss','naissance','prenom','nom','adresse','cp','ville','email','entree','emploi','position','coeff','salaire','taux-h','iban','bic'].forEach(f => {
+    const el = document.getElementById('sal-' + f);
+    if (el) el.value = '';
+  });
+  document.getElementById('sal-heures').value = '151.67';
+  document.getElementById('modal-salarie').classList.add('active');
+}
+
+function editSalarie(id) {
+  const s = salaries.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('modal-title').textContent = 'Modifier salarié';
+  document.getElementById('sal-id').value = s.id;
+  Object.keys(s).forEach(k => {
+    const el = document.getElementById('sal-' + k);
+    if (el) el.value = s[k];
+  });
+  document.getElementById('modal-salarie').classList.add('active');
+}
+
+function deleteSalarie(id) {
+  if (!confirm('Supprimer ce salarié ? Ses bulletins seront conservés.')) return;
+  salaries = salaries.filter(s => s.id !== id);
+  localStorage.setItem(STORAGE.salaries, JSON.stringify(salaries));
+  renderSalaries();
+}
+
+function saveSalarie() {
+  const id = document.getElementById('sal-id').value || 'sal_' + Date.now();
+  const s = { id };
+  ['matricule','numss','civilite','naissance','prenom','nom','adresse','cp','ville','email','contrat','entree','emploi','statut','position','coeff','salaire','taux-h','heures','iban','bic'].forEach(f => {
+    const el = document.getElementById('sal-' + f);
+    if (el) s[f] = el.value;
+  });
+  
+  if (!s.nom || !s.prenom || !s.matricule) {
+    alert('⚠️ Nom, prénom et matricule requis');
+    return;
+  }
+  
+  const idx = salaries.findIndex(x => x.id === id);
+  if (idx >= 0) salaries[idx] = s; else salaries.push(s);
+  localStorage.setItem(STORAGE.salaries, JSON.stringify(salaries));
+  closeSalarieModal();
+  renderSalaries();
+}
+
+function closeSalarieModal() {
+  document.getElementById('modal-salarie').classList.remove('active');
+}
+
+function loadSalariesDropdown() {
+  const sel = document.getElementById('gen-salarie');
+  sel.innerHTML = '<option value="">-- Sélectionner --</option>' + 
+    salaries.map(s => `<option value="${s.id}">${s.matricule} - ${s.prenom} ${s.nom}</option>`).join('');
+  
+  const filterSel = document.getElementById('filter-salarie');
+  if (filterSel) {
+    filterSel.innerHTML = '<option value="">Tous</option>' + 
+      salaries.map(s => `<option value="${s.id}">${s.prenom} ${s.nom}</option>`).join('');
+  }
+}
+
+function loadSalarieData() {
+  const id = document.getElementById('gen-salarie').value;
+  if (!id) return;
+  const s = salaries.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('gen-heures').value = s.heures || 151.67;
+  document.getElementById('gen-taux').value = s['taux-h'] || (s.salaire / (s.heures || 151.67)).toFixed(4);
+  recalc();
+}
+
+// =========================================
+// PARAMETRES
+// =========================================
+function loadParametres() {
+  document.getElementById('par-pmss').value = parametres.pmss;
+  document.getElementById('par-smic').value = parametres.smic;
+  document.getElementById('par-smic-m').value = parametres.smicM;
+  // Salariales
+  Object.keys(parametres.sal).forEach(k => {
+    const map = { maladie: 'maladie', vieilP: 'vieil-p', vieilD: 'vieil-d', agircT1: 'agirc-t1', agircT2: 'agirc-t2', cegT1: 'ceg-t1', cegT2: 'ceg-t2', apec: 'apec', csgD: 'csg-d', csgND: 'csg-nd', sante: 'sante' };
+    const el = document.getElementById('par-sal-' + map[k]);
+    if (el) el.value = parametres.sal[k];
+  });
+  Object.keys(parametres.pat).forEach(k => {
+    const map = { maladie: 'maladie', vieilP: 'vieil-p', vieilD: 'vieil-d', famille: 'famille', chomage: 'chomage', ags: 'ags', agircT1: 'agirc-t1', agircT2: 'agirc-t2', cegT1: 'ceg-t1', cegT2: 'ceg-t2', apec: 'apec', cds: 'cds', sante: 'sante', formation: 'formation', appr: 'appr', vt: 'vt' };
+    if (map[k]) {
+      const el = document.getElementById('par-pat-' + map[k]);
+      if (el) el.value = parametres.pat[k];
+    }
+  });
+}
+
+function saveParametres() {
+  parametres.pmss = parseFloat(document.getElementById('par-pmss').value);
+  parametres.smic = parseFloat(document.getElementById('par-smic').value);
+  parametres.smicM = parseFloat(document.getElementById('par-smic-m').value);
+  
+  const salMap = { maladie: 'maladie', vieilP: 'vieil-p', vieilD: 'vieil-d', agircT1: 'agirc-t1', agircT2: 'agirc-t2', cegT1: 'ceg-t1', cegT2: 'ceg-t2', apec: 'apec', csgD: 'csg-d', csgND: 'csg-nd', sante: 'sante' };
+  Object.keys(salMap).forEach(k => {
+    const el = document.getElementById('par-sal-' + salMap[k]);
+    if (el) parametres.sal[k] = parseFloat(el.value);
+  });
+  
+  const patMap = { maladie: 'maladie', vieilP: 'vieil-p', vieilD: 'vieil-d', famille: 'famille', chomage: 'chomage', ags: 'ags', agircT1: 'agirc-t1', agircT2: 'agirc-t2', cegT1: 'ceg-t1', cegT2: 'ceg-t2', apec: 'apec', cds: 'cds', sante: 'sante', formation: 'formation', appr: 'appr', vt: 'vt' };
+  Object.keys(patMap).forEach(k => {
+    const el = document.getElementById('par-pat-' + patMap[k]);
+    if (el) parametres.pat[k] = parseFloat(el.value);
+  });
+  
+  localStorage.setItem(STORAGE.parametres, JSON.stringify(parametres));
+  alert('✅ Paramètres enregistrés');
+}
+
+// =========================================
+// CALCUL DU BULLETIN
+// =========================================
+function calculerBulletin(data) {
+  const p = parametres;
+  const pmss = p.pmss;
+  
+  // Salaire de base
+  const salaireBase = data.heures * data.taux;
+  const hs25 = data.hs25 * data.taux * 1.25;
+  const hs50 = data.hs50 * data.taux * 1.50;
+  const hc = data.hc * data.taux * 1.10;
+  const hn = data.hn * data.taux * 1.30;
+  
+  // Primes
+  const totalPrimes = data.primeAnc + data.primeExc + data.primePerf + data.prime13;
+  
+  // Avantages en nature
+  const totalAvn = data.avnVehicule + data.avnLogement + data.avnNourriture + data.avnAutres;
+  
+  // Absences
+  const retenueAbsence = data.absNR * data.taux;
+  
+  // Indemnités CP
+  const indemniteCP = data.cpPrisMois * (salaireBase / data.heures);
+  
+  // Brut
+  const brut = salaireBase + hs25 + hs50 + hc + hn + totalPrimes + totalAvn + indemniteCP - retenueAbsence;
+  
+  // Bases de calcul
+  const baseSS = Math.min(brut, pmss);
+  const tranche2 = Math.max(0, Math.min(brut, 8 * pmss) - pmss);
+  const baseCSG = brut * 0.9825 + totalAvn * (1 - 0.9825); // Abattement 1.75% sur brut hors avn (mais avn intégral)
+  
+  // Cotisations salariales
+  const cotSal = {
+    maladieAM: brut * p.sal.maladie / 100,
+    vieilP: baseSS * p.sal.vieilP / 100,
+    vieilD: brut * p.sal.vieilD / 100,
+    agircT1: baseSS * p.sal.agircT1 / 100,
+    agircT2: tranche2 * p.sal.agircT2 / 100,
+    cegT1: baseSS * p.sal.cegT1 / 100,
+    cegT2: tranche2 * p.sal.cegT2 / 100,
+    apec: (data.estCadre ? Math.min(brut, 4 * pmss) * p.sal.apec / 100 : 0),
+    sante: brut * p.sal.sante / 100,
+    csgD: baseCSG * p.sal.csgD / 100,
+    csgND: baseCSG * p.sal.csgND / 100
+  };
+  
+  // Titres restaurant salarié
+  const trTotal = data.trNb * data.trValeur;
+  const trSalariePart = trTotal * (100 - data.trPart) / 100;
+  
+  // Total cotisations salariales
+  const totalCotSal = Object.values(cotSal).reduce((a,b) => a+b, 0);
+  
+  // Cotisations patronales
+  const cotPat = {
+    maladie: brut * p.pat.maladie / 100,
+    vieilP: baseSS * p.pat.vieilP / 100,
+    vieilD: brut * p.pat.vieilD / 100,
+    famille: brut * p.pat.famille / 100,
+    chomage: Math.min(brut, 4 * pmss) * p.pat.chomage / 100,
+    ags: Math.min(brut, 4 * pmss) * p.pat.ags / 100,
+    agircT1: baseSS * p.pat.agircT1 / 100,
+    agircT2: tranche2 * p.pat.agircT2 / 100,
+    cegT1: baseSS * p.pat.cegT1 / 100,
+    cegT2: tranche2 * p.pat.cegT2 / 100,
+    apec: (data.estCadre ? Math.min(brut, 4 * pmss) * p.pat.apec / 100 : 0),
+    cds: brut * p.pat.cds / 100,
+    sante: brut * p.pat.sante / 100,
+    formation: brut * p.pat.formation / 100,
+    appr: brut * p.pat.appr / 100,
+    vt: brut * p.pat.vt / 100,
+    at: brut * p.pat.at / 100,
+    fnal: baseSS * p.pat.fnal / 100
+  };
+  
+  // Réduction Fillon (formule simplifiée 2026)
+  // Coefficient = (T / 0.6) × (1.6 × SMIC annuel / rémunération annuelle − 1)
+  // T = 0.3194 pour effectif < 50, 0.3234 pour effectif ≥ 50
+  const T = (entreprise.effectif === 'plus50') ? 0.3234 : 0.3194;
+  const smicAnnuel = p.smicM * 12;
+  const remunerationAnnuelle = brut * 12;
+  let reductionFillon = 0;
+  if (brut > 0 && brut < 1.6 * p.smicM) {
+    const coef = (T / 0.6) * (1.6 * p.smicM / brut - 1);
+    const coefValide = Math.max(0, Math.min(T, coef));
+    reductionFillon = brut * coefValide;
+  }
+  
+  const totalCotPat = Object.values(cotPat).reduce((a,b) => a+b, 0) - reductionFillon;
+  
+  // Frais professionnels (non soumis)
+  const totalFrais = data.indTransport + data.fraisPro + data.teletravail;
+  
+  // Net social
+  const netSocial = brut - totalCotSal + cotSal.csgND;
+  
+  // Net imposable
+  const netImposable = brut - totalCotSal + cotSal.csgND;
+  
+  // Net avant impôt
+  const netAvantImpot = brut - totalCotSal - totalAvn + totalFrais - trSalariePart + (data.subrogation === 'oui' ? 0 : data.ijss);
+  
+  // PAS
+  const pas = netImposable * data.pasTaux / 100;
+  
+  // Retenues diverses
+  const totalRetenues = data.acompte + data.saisie + data.pension;
+  
+  // Net payé
+  const netPaye = netAvantImpot - pas - totalRetenues;
+  
+  // Coût total employeur
+  const coutTotal = brut + totalCotPat;
+  
+  return {
+    salaireBase, hs25, hs50, hc, hn, totalPrimes, totalAvn, indemniteCP, retenueAbsence,
+    brut, baseSS, tranche2, baseCSG, cotSal, cotPat, totalCotSal, totalCotPat,
+    trTotal, trSalariePart, reductionFillon, totalFrais, netSocial, netImposable,
+    netAvantImpot, pas, totalRetenues, netPaye, coutTotal
+  };
+}
+
+function getFormData() {
+  const salId = document.getElementById('gen-salarie').value;
+  const salarie = salaries.find(s => s.id === salId) || {};
+  
+  return {
+    salarieId: salId,
+    salarie,
+    mois: document.getElementById('gen-mois').value,
+    annee: parseInt(document.getElementById('gen-annee').value),
+    heures: parseFloat(document.getElementById('gen-heures').value) || 0,
+    taux: parseFloat(document.getElementById('gen-taux').value) || 0,
+    hs25: parseFloat(document.getElementById('gen-hs25').value) || 0,
+    hs50: parseFloat(document.getElementById('gen-hs50').value) || 0,
+    hc: parseFloat(document.getElementById('gen-hc').value) || 0,
+    hn: parseFloat(document.getElementById('gen-hn').value) || 0,
+    primeAnc: parseFloat(document.getElementById('gen-prime-anc').value) || 0,
+    primeExc: parseFloat(document.getElementById('gen-prime-exc').value) || 0,
+    primePerf: parseFloat(document.getElementById('gen-prime-perf').value) || 0,
+    prime13: parseFloat(document.getElementById('gen-prime-13').value) || 0,
+    cpAcquisN1: parseFloat(document.getElementById('gen-cp-acquis-n1').value) || 0,
+    cpPrisN1: parseFloat(document.getElementById('gen-cp-pris-n1').value) || 0,
+    cpAcquisN: parseFloat(document.getElementById('gen-cp-acquis-n').value) || 0,
+    cpPrisMois: parseFloat(document.getElementById('gen-cp-pris-mois').value) || 0,
+    rttAcquis: parseFloat(document.getElementById('gen-rtt-acquis').value) || 0,
+    rttPris: parseFloat(document.getElementById('gen-rtt-pris').value) || 0,
+    rttMois: parseFloat(document.getElementById('gen-rtt-mois').value) || 0,
+    maladieJours: parseFloat(document.getElementById('gen-maladie-jours').value) || 0,
+    ijss: parseFloat(document.getElementById('gen-ijss').value) || 0,
+    subrogation: document.getElementById('gen-subrogation').value,
+    absNR: parseFloat(document.getElementById('gen-abs-nr').value) || 0,
+    avnVehicule: parseFloat(document.getElementById('gen-avn-vehicule').value) || 0,
+    avnLogement: parseFloat(document.getElementById('gen-avn-logement').value) || 0,
+    avnNourriture: parseFloat(document.getElementById('gen-avn-nourriture').value) || 0,
+    avnAutres: parseFloat(document.getElementById('gen-avn-autres').value) || 0,
+    indTransport: parseFloat(document.getElementById('gen-ind-transport').value) || 0,
+    fraisPro: parseFloat(document.getElementById('gen-frais-pro').value) || 0,
+    teletravail: parseFloat(document.getElementById('gen-teletravail').value) || 0,
+    trNb: parseFloat(document.getElementById('gen-tr-nb').value) || 0,
+    trValeur: parseFloat(document.getElementById('gen-tr-valeur').value) || 0,
+    trPart: parseFloat(document.getElementById('gen-tr-part').value) || 50,
+    acompte: parseFloat(document.getElementById('gen-acompte').value) || 0,
+    saisie: parseFloat(document.getElementById('gen-saisie').value) || 0,
+    pension: parseFloat(document.getElementById('gen-pension').value) || 0,
+    pasType: document.getElementById('gen-pas-type').value,
+    pasTaux: parseFloat(document.getElementById('gen-pas-taux').value) || 0,
+    estCadre: (salarie.statut === 'Cadre')
+  };
+}
+
+function recalc() {
+  const data = getFormData();
+  document.getElementById('gen-base').value = (data.heures * data.taux).toFixed(2);
+  
+  const r = calculerBulletin(data);
+  
+  document.getElementById('recap-live').innerHTML = `
+    <div class="form-grid cols-4" style="gap: 15px;">
+      <div style="padding: 15px; background: #f0f0fa; border-radius: 6px;">
+        <div style="font-size: 11px; color: #6b7280;">SALAIRE BRUT</div>
+        <div style="font-size: 20px; font-weight: 700; color: #1a1a4d;">${r.brut.toFixed(2)} €</div>
+      </div>
+      <div style="padding: 15px; background: #fef3c7; border-radius: 6px;">
+        <div style="font-size: 11px; color: #6b7280;">COTISATIONS SALARIALES</div>
+        <div style="font-size: 20px; font-weight: 700; color: #92400e;">-${r.totalCotSal.toFixed(2)} €</div>
+      </div>
+      <div style="padding: 15px; background: #d1fae5; border-radius: 6px;">
+        <div style="font-size: 11px; color: #6b7280;">NET AVANT IMPÔT</div>
+        <div style="font-size: 20px; font-weight: 700; color: #065f46;">${r.netAvantImpot.toFixed(2)} €</div>
+      </div>
+      <div style="padding: 15px; background: #dbeafe; border-radius: 6px;">
+        <div style="font-size: 11px; color: #6b7280;">NET PAYÉ</div>
+        <div style="font-size: 20px; font-weight: 700; color: #1e40af;">${r.netPaye.toFixed(2)} €</div>
+      </div>
+    </div>
+    <div style="margin-top: 15px; padding: 12px; background: #f9fafb; border-radius: 6px; font-size: 13px;">
+      <strong>Net social:</strong> ${r.netSocial.toFixed(2)} € | 
+      <strong>Net imposable:</strong> ${r.netImposable.toFixed(2)} € | 
+      <strong>PAS (${data.pasTaux}%):</strong> ${r.pas.toFixed(2)} € | 
+      <strong>Coût total employeur:</strong> ${r.coutTotal.toFixed(2)} € | 
+      <strong>Réduction Fillon:</strong> ${r.reductionFillon.toFixed(2)} €
+    </div>
+  `;
+}
+
+// =========================================
+// BULLETIN PDF
+// =========================================
+function genererBulletinHTML(data, calc) {
+  const s = data.salarie;
+  const ent = entreprise;
+  const soldeCP = (data.cpAcquisN1 - data.cpPrisN1) + (data.cpAcquisN - data.cpPrisMois);
+  
+  return `
+    <div class="bulletin" id="bulletin-content">
+      <div class="header-grid">
+        <div>
+          <div style="font-size: 12px; font-weight: bold; margin-bottom: 3px;">${ent.nom || 'ENTREPRISE'}</div>
+          <div style="font-size: 10px; font-weight: bold;">${ent.adresse || ''}</div>
+          <div style="font-size: 10px; font-weight: bold; margin-bottom: 10px;">${ent.cp || ''} ${ent.ville || ''}</div>
+          <div style="font-size: 9px; line-height: 1.5;">
+            <div>Siret : <b>${ent.siret || ''}</b>  Code Naf : <b>${ent.naf || ''}</b></div>
+            <div>Urssaf : <b>${ent.urssaf || ''}</b></div>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 22px; font-weight: bold;">BULLETIN DE SALAIRE</div>
+          <div style="font-size: 11px;">Période : <b>${data.mois} ${data.annee}</b></div>
+          <div style="font-size: 9px; margin-top: 5px;">Émis le ${new Date().toLocaleDateString('fr-FR')}</div>
+        </div>
+      </div>
+      
+      <div class="header-grid">
+        <div style="font-size: 9px; line-height: 1.8;">
+          <div>Matricule : <b>${s.matricule || ''}</b></div>
+          <div>N°SS : <b>${s.numss || ''}</b></div>
+          <div style="margin-top: 8px;">Emploi : <b>${s.emploi || ''}</b></div>
+          <div>Statut : <b>${s.statut || ''}</b></div>
+          <div>Position : <b>${s.position || ''}</b> - Coefficient : <b>${s.coeff || ''}</b></div>
+          <div style="margin-top: 8px;">Contrat : <b>${s.contrat || ''}</b> - Entrée : <b>${s.entree || ''}</b></div>
+        </div>
+        <div class="salarie-info">
+          <div style="font-weight: bold;">${s.civilite || ''} ${s.prenom || ''} ${s.nom || ''}</div>
+          <div>${s.adresse || ''}</div>
+          <div style="font-weight: bold;">${s.cp || ''} ${s.ville || ''}</div>
+        </div>
+      </div>
+      
+      <div style="font-size: 9px; margin-bottom: 10px;">
+        Convention collective : <b>${ent.convention || ''}</b>
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align: left; width: 35%;">Éléments de paie</th>
+            <th style="width: 12%;">Base</th>
+            <th style="width: 10%;">Taux sal.</th>
+            <th style="width: 12%;">Retenues</th>
+            <th style="width: 10%;">Taux pat.</th>
+            <th style="width: 11%;">Charges pat.</th>
+            <th style="width: 10%;">Gains</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#f8f8f8;font-weight:600;">
+            <td>Salaire de base</td>
+            <td style="text-align:right;">${data.heures.toFixed(2)}</td>
+            <td style="text-align:right;">${data.taux.toFixed(4)}</td>
+            <td></td><td></td><td></td>
+            <td style="text-align:right;">${calc.salaireBase.toFixed(2)}</td>
+          </tr>
+          ${data.hs25 > 0 ? `<tr><td>Heures supp. 25%</td><td style="text-align:right;">${data.hs25.toFixed(2)}</td><td style="text-align:right;">${(data.taux*1.25).toFixed(4)}</td><td></td><td></td><td></td><td style="text-align:right;">${calc.hs25.toFixed(2)}</td></tr>` : ''}
+          ${data.hs50 > 0 ? `<tr><td>Heures supp. 50%</td><td style="text-align:right;">${data.hs50.toFixed(2)}</td><td style="text-align:right;">${(data.taux*1.50).toFixed(4)}</td><td></td><td></td><td></td><td style="text-align:right;">${calc.hs50.toFixed(2)}</td></tr>` : ''}
+          ${data.hc > 0 ? `<tr><td>Heures complémentaires</td><td style="text-align:right;">${data.hc.toFixed(2)}</td><td style="text-align:right;">${(data.taux*1.10).toFixed(4)}</td><td></td><td></td><td></td><td style="text-align:right;">${calc.hc.toFixed(2)}</td></tr>` : ''}
+          ${data.hn > 0 ? `<tr><td>Heures de nuit</td><td style="text-align:right;">${data.hn.toFixed(2)}</td><td style="text-align:right;">${(data.taux*1.30).toFixed(4)}</td><td></td><td></td><td></td><td style="text-align:right;">${calc.hn.toFixed(2)}</td></tr>` : ''}
+          ${data.primeAnc > 0 ? `<tr><td>Prime d'ancienneté</td><td colspan="5"></td><td style="text-align:right;">${data.primeAnc.toFixed(2)}</td></tr>` : ''}
+          ${data.primeExc > 0 ? `<tr><td>Prime exceptionnelle</td><td colspan="5"></td><td style="text-align:right;">${data.primeExc.toFixed(2)}</td></tr>` : ''}
+          ${data.primePerf > 0 ? `<tr><td>Prime performance</td><td colspan="5"></td><td style="text-align:right;">${data.primePerf.toFixed(2)}</td></tr>` : ''}
+          ${data.prime13 > 0 ? `<tr><td>13ème mois</td><td colspan="5"></td><td style="text-align:right;">${data.prime13.toFixed(2)}</td></tr>` : ''}
+          ${calc.indemniteCP > 0 ? `<tr><td>Indemnité congés payés (${data.cpPrisMois.toFixed(2)} j)</td><td colspan="5"></td><td style="text-align:right;">${calc.indemniteCP.toFixed(2)}</td></tr>` : ''}
+          ${calc.totalAvn > 0 ? `<tr><td>Avantages en nature</td><td colspan="5"></td><td style="text-align:right;">${calc.totalAvn.toFixed(2)}</td></tr>` : ''}
+          ${calc.retenueAbsence > 0 ? `<tr><td>Retenue pour absence</td><td style="text-align:right;">${data.absNR.toFixed(2)}</td><td></td><td style="text-align:right;">${calc.retenueAbsence.toFixed(2)}</td><td colspan="3"></td></tr>` : ''}
+          
+          <tr style="background:#e8e8e8;font-weight:bold;">
+            <td>SALAIRE BRUT</td>
+            <td colspan="5"></td>
+            <td style="text-align:right;">${calc.brut.toFixed(2)}</td>
+          </tr>
+          
+          <tr style="background:#f0f0f0;font-weight:600;"><td colspan="7">SANTÉ</td></tr>
+          <tr><td>Sécurité sociale - Maladie Maternité Invalidité Décès</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.maladie.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.maladie.toFixed(2)}</td><td></td></tr>
+          <tr><td>Complémentaire santé</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td style="text-align:right;">${parametres.sal.sante.toFixed(2)}</td><td style="text-align:right;">${calc.cotSal.sante.toFixed(2)}</td><td style="text-align:right;">${parametres.pat.sante.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.sante.toFixed(2)}</td><td></td></tr>
+          <tr><td>Accidents du travail</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.at.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.at.toFixed(2)}</td><td></td></tr>
+          
+          <tr style="background:#f0f0f0;font-weight:600;"><td colspan="7">RETRAITE</td></tr>
+          <tr><td>Sécurité sociale plafonnée</td><td style="text-align:right;">${calc.baseSS.toFixed(2)}</td><td style="text-align:right;">${parametres.sal.vieilP.toFixed(2)}</td><td style="text-align:right;">${calc.cotSal.vieilP.toFixed(2)}</td><td style="text-align:right;">${parametres.pat.vieilP.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.vieilP.toFixed(2)}</td><td></td></tr>
+          <tr><td>Sécurité sociale déplafonnée</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td style="text-align:right;">${parametres.sal.vieilD.toFixed(2)}</td><td style="text-align:right;">${calc.cotSal.vieilD.toFixed(2)}</td><td style="text-align:right;">${parametres.pat.vieilD.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.vieilD.toFixed(2)}</td><td></td></tr>
+          <tr><td>Retraite complémentaire T1</td><td style="text-align:right;">${calc.baseSS.toFixed(2)}</td><td style="text-align:right;">${parametres.sal.agircT1.toFixed(2)}</td><td style="text-align:right;">${calc.cotSal.agircT1.toFixed(2)}</td><td style="text-align:right;">${parametres.pat.agircT1.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.agircT1.toFixed(2)}</td><td></td></tr>
+          ${calc.tranche2 > 0 ? `<tr><td>Retraite complémentaire T2</td><td style="text-align:right;">${calc.tranche2.toFixed(2)}</td><td style="text-align:right;">${parametres.sal.agircT2.toFixed(2)}</td><td style="text-align:right;">${calc.cotSal.agircT2.toFixed(2)}</td><td style="text-align:right;">${parametres.pat.agircT2.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.agircT2.toFixed(2)}</td><td></td></tr>` : ''}
+          <tr><td>CEG T1</td><td style="text-align:right;">${calc.baseSS.toFixed(2)}</td><td style="text-align:right;">${parametres.sal.cegT1.toFixed(2)}</td><td style="text-align:right;">${calc.cotSal.cegT1.toFixed(2)}</td><td style="text-align:right;">${parametres.pat.cegT1.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.cegT1.toFixed(2)}</td><td></td></tr>
+          ${data.estCadre ? `<tr><td>APEC (cadres)</td><td style="text-align:right;">${Math.min(calc.brut, 4*parametres.pmss).toFixed(2)}</td><td style="text-align:right;">${parametres.sal.apec.toFixed(3)}</td><td style="text-align:right;">${calc.cotSal.apec.toFixed(2)}</td><td style="text-align:right;">${parametres.pat.apec.toFixed(3)}</td><td style="text-align:right;">${calc.cotPat.apec.toFixed(2)}</td><td></td></tr>` : ''}
+          
+          <tr style="background:#f0f0f0;font-weight:600;"><td colspan="7">FAMILLE - CHÔMAGE</td></tr>
+          <tr><td>Allocations familiales</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.famille.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.famille.toFixed(2)}</td><td></td></tr>
+          <tr><td>Assurance chômage</td><td style="text-align:right;">${Math.min(calc.brut, 4*parametres.pmss).toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.chomage.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.chomage.toFixed(2)}</td><td></td></tr>
+          <tr><td>AGS</td><td style="text-align:right;">${Math.min(calc.brut, 4*parametres.pmss).toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.ags.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.ags.toFixed(2)}</td><td></td></tr>
+          
+          <tr style="background:#f0f0f0;font-weight:600;"><td colspan="7">AUTRES CONTRIBUTIONS EMPLOYEUR</td></tr>
+          <tr><td>FNAL</td><td style="text-align:right;">${calc.baseSS.toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.fnal.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.fnal.toFixed(2)}</td><td></td></tr>
+          <tr><td>Contribution dialogue social</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.cds.toFixed(3)}</td><td style="text-align:right;">${calc.cotPat.cds.toFixed(2)}</td><td></td></tr>
+          <tr><td>Formation professionnelle</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.formation.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.formation.toFixed(2)}</td><td></td></tr>
+          <tr><td>Taxe d'apprentissage</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.appr.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.appr.toFixed(2)}</td><td></td></tr>
+          ${parametres.pat.vt > 0 ? `<tr><td>Versement transport</td><td style="text-align:right;">${calc.brut.toFixed(2)}</td><td></td><td></td><td style="text-align:right;">${parametres.pat.vt.toFixed(2)}</td><td style="text-align:right;">${calc.cotPat.vt.toFixed(2)}</td><td></td></tr>` : ''}
+          ${calc.reductionFillon > 0 ? `<tr style="color:#10b981;"><td>Réduction générale (Fillon)</td><td colspan="4"></td><td style="text-align:right;">-${calc.reductionFillon.toFixed(2)}</td><td></td></tr>` : ''}
+          
+          <tr style="background:#f0f0f0;font-weight:600;"><td colspan="7">CSG / CRDS</td></tr>
+          <tr><td>CSG déductible de l'impôt</td><td style="text-align:right;">${calc.baseCSG.toFixed(2)}</td><td style="text-align:right;">${parametres.sal.csgD.toFixed(2)}</td><td style="text-align:right;">${calc.cotSal.csgD.toFixed(2)}</td><td colspan="3"></td></tr>
+          <tr><td>CSG/CRDS non déductible</td><td style="text-align:right;">${calc.baseCSG.toFixed(2)}</td><td style="text-align:right;">${parametres.sal.csgND.toFixed(2)}</td><td style="text-align:right;">${calc.cotSal.csgND.toFixed(2)}</td><td colspan="3"></td></tr>
+          
+          ${data.trNb > 0 ? `<tr><td>Titres restaurant (${data.trNb} x ${data.trValeur.toFixed(2)}€)</td><td style="text-align:right;">${calc.trTotal.toFixed(2)}</td><td style="text-align:right;">${(100-data.trPart).toFixed(0)}%</td><td style="text-align:right;">${calc.trSalariePart.toFixed(2)}</td><td colspan="3"></td></tr>` : ''}
+          
+          <tr style="background:#e8e8e8;font-weight:bold;">
+            <td>TOTAL COTISATIONS</td>
+            <td colspan="2"></td>
+            <td style="text-align:right;">${calc.totalCotSal.toFixed(2)}</td>
+            <td colspan="2" style="text-align:right;">${calc.totalCotPat.toFixed(2)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div class="net-box">
+        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 5px;">
+          <span>Net à payer avant impôt sur le revenu</span>
+          <span>${calc.netAvantImpot.toFixed(2)} €</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 11px;">
+          <span>Montant net social <small>(obligatoire - usage services sociaux)</small></span>
+          <span>${calc.netSocial.toFixed(2)} €</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 3px;">
+          <span>Net imposable</span>
+          <span>${calc.netImposable.toFixed(2)} €</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 10px; padding-left: 15px; margin-top: 5px; color: #6b7280;">
+          <span>Prélèvement à la source (${data.pasTaux}% - ${data.pasType})</span>
+          <span>-${calc.pas.toFixed(2)} €</span>
+        </div>
+        ${data.acompte > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 10px; padding-left: 15px; color: #6b7280;"><span>Acompte versé</span><span>-${data.acompte.toFixed(2)} €</span></div>` : ''}
+        ${data.saisie > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 10px; padding-left: 15px; color: #6b7280;"><span>Saisie sur salaire</span><span>-${data.saisie.toFixed(2)} €</span></div>` : ''}
+        ${data.pension > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 10px; padding-left: 15px; color: #6b7280;"><span>Pension alimentaire</span><span>-${data.pension.toFixed(2)} €</span></div>` : ''}
+      </div>
+      
+      <table style="margin-top: 15px;">
+        <thead>
+          <tr>
+            <th>Période</th><th>Heures</th><th>Brut</th><th>Base SS</th><th>Net imposable</th><th>Ch. patronales</th><th>Coût total</th><th>Allègements</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Mensuel</td>
+            <td style="text-align:right;">${(data.heures + data.hs25 + data.hs50).toFixed(2)}</td>
+            <td style="text-align:right;">${calc.brut.toFixed(2)}</td>
+            <td style="text-align:right;">${calc.baseSS.toFixed(2)}</td>
+            <td style="text-align:right;">${calc.netImposable.toFixed(2)}</td>
+            <td style="text-align:right;">${calc.totalCotPat.toFixed(2)}</td>
+            <td style="text-align:right;">${calc.coutTotal.toFixed(2)}</td>
+            <td style="text-align:right;">${calc.reductionFillon.toFixed(2)}</td>
+          </tr>
+          <tr style="background:#f8f8f8;">
+            <td>Cumul annuel *</td>
+            <td style="text-align:right;">${((data.heures + data.hs25 + data.hs50) * getMonthNumber(data.mois)).toFixed(2)}</td>
+            <td style="text-align:right;">${(calc.brut * getMonthNumber(data.mois)).toFixed(2)}</td>
+            <td style="text-align:right;">${(calc.baseSS * getMonthNumber(data.mois)).toFixed(2)}</td>
+            <td style="text-align:right;">${(calc.netImposable * getMonthNumber(data.mois)).toFixed(2)}</td>
+            <td style="text-align:right;">${(calc.totalCotPat * getMonthNumber(data.mois)).toFixed(2)}</td>
+            <td style="text-align:right;">${(calc.coutTotal * getMonthNumber(data.mois)).toFixed(2)}</td>
+            <td style="text-align:right;">${(calc.reductionFillon * getMonthNumber(data.mois)).toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <table style="margin-top: 10px;">
+        <thead>
+          <tr><th>Compteur</th><th>Acquis</th><th>Pris</th><th>Solde</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Congés payés N-1</td>
+            <td style="text-align:right;">${data.cpAcquisN1.toFixed(2)}</td>
+            <td style="text-align:right;">${data.cpPrisN1.toFixed(2)}</td>
+            <td style="text-align:right;font-weight:bold;">${(data.cpAcquisN1 - data.cpPrisN1).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>Congés payés N</td>
+            <td style="text-align:right;">${data.cpAcquisN.toFixed(2)}</td>
+            <td style="text-align:right;">${data.cpPrisMois.toFixed(2)}</td>
+            <td style="text-align:right;font-weight:bold;">${(data.cpAcquisN - data.cpPrisMois).toFixed(2)}</td>
+          </tr>
+          ${data.rttAcquis > 0 || data.rttPris > 0 || data.rttMois > 0 ? `
+          <tr>
+            <td>RTT</td>
+            <td style="text-align:right;">${data.rttAcquis.toFixed(2)}</td>
+            <td style="text-align:right;">${data.rttMois.toFixed(2)}</td>
+            <td style="text-align:right;font-weight:bold;">${(data.rttAcquis - data.rttMois - data.rttPris).toFixed(2)}</td>
+          </tr>` : ''}
+        </tbody>
+      </table>
+      
+      <div class="net-final">
+        NET À PAYER : ${calc.netPaye.toFixed(2)} €
+      </div>
+      
+      <div style="font-size: 8px; margin-top: 15px; line-height: 1.5; color: #4b5563;">
+        <p><strong>* Cumul annuel depuis janvier (calcul proportionnel simplifié - dans une vraie app, historique réel stocké)</strong></p>
+        <p style="margin-top: 5px;">Dans votre intérêt et pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée.</p>
+        <p>Pour la définition des termes employés, se reporter au site <b>www.service-public.fr</b></p>
+        <p style="margin-top: 5px;">Le montant net social correspond aux ressources prises en compte pour le calcul de certaines prestations sociales (RSA, prime d'activité...).</p>
+      </div>
+    </div>
+  `;
+}
+
+function getMonthNumber(m) {
+  return { 'Janvier': 1, 'Février': 2, 'Mars': 3, 'Avril': 4, 'Mai': 5, 'Juin': 6, 'Juillet': 7, 'Août': 8, 'Septembre': 9, 'Octobre': 10, 'Novembre': 11, 'Décembre': 12 }[m] || 1;
+}
+
+function previewBulletin() {
+  const data = getFormData();
+  if (!data.salarieId) { alert('⚠️ Sélectionnez un salarié'); return; }
+  const calc = calculerBulletin(data);
+  document.getElementById('bulletin-preview').innerHTML = genererBulletinHTML(data, calc);
+  document.getElementById('modal-preview').classList.add('active');
+}
+
+function closePreview() {
+  document.getElementById('modal-preview').classList.remove('active');
+}
+
+async function downloadPDF() {
+  const el = document.getElementById('bulletin-content');
+  const canvas = await html2canvas(el, { scale: 2 });
+  const imgData = canvas.toDataURL('image/png');
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+  pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+  
+  const data = getFormData();
+  const s = data.salarie;
+  pdf.save(`Bulletin_${s.nom}_${s.prenom}_${data.mois}_${data.annee}.pdf`);
+}
+
+function saveBulletin() {
+  const data = getFormData();
+  if (!data.salarieId) { alert('⚠️ Sélectionnez un salarié'); return; }
+  const calc = calculerBulletin(data);
+  
+  const bulletin = {
+    id: 'bul_' + Date.now(),
+    salarieId: data.salarieId,
+    salarieNom: `${data.salarie.prenom} ${data.salarie.nom}`,
+    mois: data.mois,
+    annee: data.annee,
+    date: new Date().toISOString(),
+    data,
+    calc
+  };
+  
+  bulletins.push(bulletin);
+  localStorage.setItem(STORAGE.bulletins, JSON.stringify(bulletins));
+  alert('✅ Bulletin enregistré');
+}
+
+// =========================================
+// BULLETINS LIST
+// =========================================
+function renderBulletinsFilters() {
+  loadSalariesDropdown();
+}
+
+function renderBulletins() {
+  const filterSal = document.getElementById('filter-salarie').value;
+  const filterMois = document.getElementById('filter-mois').value;
+  const filterAnnee = document.getElementById('filter-annee').value;
+  
+  let list = bulletins.slice().reverse();
+  if (filterSal) list = list.filter(b => b.salarieId === filterSal);
+  if (filterMois) list = list.filter(b => b.mois === filterMois);
+  if (filterAnnee) list = list.filter(b => b.annee == filterAnnee);
+  
+  const tbody = document.getElementById('bulletins-list');
+  tbody.innerHTML = list.map(b => `
+    <tr>
+      <td>${b.mois} ${b.annee}</td>
+      <td>${b.salarieNom}</td>
+      <td>${b.calc.brut.toFixed(2)} €</td>
+      <td>${b.calc.totalCotSal.toFixed(2)} €</td>
+      <td>${b.calc.netAvantImpot.toFixed(2)} €</td>
+      <td>${b.calc.pas.toFixed(2)} €</td>
+      <td><strong>${b.calc.netPaye.toFixed(2)} €</strong></td>
+      <td>
+        <button class="btn btn-sm btn-primary" onclick="viewBulletin('${b.id}')">👁️</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteBulletin('${b.id}')">🗑️</button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="8" style="text-align:center;color:#9ca3af;">Aucun bulletin</td></tr>';
+}
+
+function viewBulletin(id) {
+  const b = bulletins.find(x => x.id === id);
+  if (!b) return;
+  document.getElementById('bulletin-preview').innerHTML = genererBulletinHTML(b.data, b.calc);
+  document.getElementById('modal-preview').classList.add('active');
+}
+
+function deleteBulletin(id) {
+  if (!confirm('Supprimer ce bulletin ?')) return;
+  bulletins = bulletins.filter(b => b.id !== id);
+  localStorage.setItem(STORAGE.bulletins, JSON.stringify(bulletins));
+  renderBulletins();
+}
+
+async function exportAllBulletins() {
+  if (bulletins.length === 0) { alert('Aucun bulletin à exporter'); return; }
+  if (!confirm(`Exporter ${bulletins.length} bulletin(s) en PDF ?`)) return;
+  
+  for (const b of bulletins) {
+    const div = document.createElement('div');
+    div.style.position = 'absolute';
+    div.style.left = '-10000px';
+    div.innerHTML = genererBulletinHTML(b.data, b.calc);
+    document.body.appendChild(div);
+    
+    const el = div.querySelector('.bulletin');
+    const canvas = await html2canvas(el, { scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`Bulletin_${b.salarieNom.replace(' ', '_')}_${b.mois}_${b.annee}.pdf`);
+    
+    document.body.removeChild(div);
+    await new Promise(r => setTimeout(r, 300));
+  }
+  alert('✅ Export terminé');
+}
+
+// =========================================
+// DASHBOARD
+// =========================================
+function renderDashboard() {
+  document.getElementById('stat-salaries').textContent = salaries.length;
+  
+  const now = new Date();
+  const moisNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const moisActuel = moisNames[now.getMonth()];
+  const anneeActuelle = now.getFullYear();
+  
+  const bulletinsMois = bulletins.filter(b => b.mois === moisActuel && b.annee == anneeActuelle);
+  document.getElementById('stat-bulletins').textContent = bulletinsMois.length;
+  
+  const masseBrute = bulletinsMois.reduce((s, b) => s + b.calc.brut, 0);
+  document.getElementById('stat-masse').textContent = masseBrute.toFixed(2) + ' €';
+  
+  const coutTotal = bulletinsMois.reduce((s, b) => s + b.calc.coutTotal, 0);
+  document.getElementById('stat-cout').textContent = coutTotal.toFixed(2) + ' €';
+  
+  const derniers = bulletins.slice(-5).reverse();
+  document.getElementById('derniers-bulletins').innerHTML = derniers.map(b => `
+    <tr>
+      <td>${new Date(b.date).toLocaleDateString('fr-FR')}</td>
+      <td>${b.salarieNom}</td>
+      <td>${b.mois} ${b.annee}</td>
+      <td>${b.calc.brut.toFixed(2)} €</td>
+      <td><strong>${b.calc.netPaye.toFixed(2)} €</strong></td>
+      <td><button class="btn btn-sm btn-primary" onclick="viewBulletin('${b.id}')">👁️</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center;color:#9ca3af;">Aucun bulletin</td></tr>';
+}
+
+// =========================================
+// INIT
+// =========================================
+window.onload = function() {
+  loadEntreprise();
+  renderDashboard();
+};
+</script>
+</body>
+</html>
